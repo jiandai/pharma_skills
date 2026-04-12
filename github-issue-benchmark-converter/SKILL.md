@@ -1,5 +1,5 @@
 ---
-name: github_issue_benchmark_converter
+name: github-issue-benchmark-converter
 description: Converts a GitHub Issue describing a task, problem, or feature into a standardized benchmark data entry in JSON format mapping perfectly to agentskills.io schemas. Use when a user needs to curate benchmark data or parse an issue into an eval.
 ---
 
