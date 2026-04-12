@@ -1,0 +1,31 @@
+name: Validate Skills
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Validate skills
+        run: |
+          set -e
+          # Loop through all top-level directories
+          for dir in */; do
+            if [ -f "${dir}SKILL.md" ]; then
+              echo "====================================="
+              echo "✅ Validating ${dir}..."
+              echo "====================================="
+              uvx --from skills-ref agentskills validate "${dir}"
+            fi
+          done
