@@ -37,7 +37,7 @@ https://drive.google.com/file/d/1O9-SCJEoXGJv6J3YXuZZ1eiVB4Jk6Gao/view
 
 ## Installation
 
-1. Copy the `group_sequential_design/` folder into your project's `.claude/skills/` directory
+1. Copy the `group-sequential-design/` folder into your project's `.claude/skills/` directory
 2. Ensure R and Python are installed with the required packages
 3. Set the Rscript path in your project's `CLAUDE.md`:
    ```
@@ -46,16 +46,16 @@ https://drive.google.com/file/d/1O9-SCJEoXGJv6J3YXuZZ1eiVB4Jk6Gao/view
 
 ## Usage
 
-Invoke with `/group_sequential_design` in Claude Code, or describe a trial design task (e.g., "Design a Phase 3 trial for 1L NSCLC with co-primary PFS and OS").
+Invoke with `/group-sequential-design` in Claude Code, or describe a trial design task (e.g., "Design a Phase 3 trial for 1L NSCLC with co-primary PFS and OS").
 
 ## Skill Structure
 
 ```
-group_sequential_design/
+group-sequential-design/
 ├── SKILL.md            # Main skill instructions and Q&A workflow
 ├── reference.md        # Design guidance, rules, failure modes
 ├── examples.md         # R code examples by design pattern
-├── post_design.md      # IA timing checks and verification procedure
+├── post-design.md      # IA timing checks and verification procedure
 ├── README.md           # This file
 ├── LICENSE
 

@@ -19,7 +19,7 @@ This skill will trigger and intelligently extract the necessary components (`pro
 **User**: 
 > "Parse this issue text into a benchmark:
 > \## Skills 
-> group_sequential_design
+> group-sequential-design
 > \## Query 
 > Please output an interim bounds analysis..."
 
@@ -27,7 +27,7 @@ This skill will trigger and intelligently extract the necessary components (`pro
 > "Here is the extracted evaluation data:"
 > \`\`\`json
 > {
->   "skill_name": "group_sequential_design",
+>   "skill_name": "group-sequential-design",
 >   "evals": [ ... ]
 > }
 > \`\`\`

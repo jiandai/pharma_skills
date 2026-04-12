@@ -6,18 +6,18 @@ A collection of agent skills for pharmaceutical R&D.
 
 | Skill | Description |
 |-------|-------------|
-| [group_sequential_design](group_sequential_design/) | Design group sequential clinical trials for survival endpoints (OS, PFS, DFS) with interim analyses, spending functions, multiplicity, and event/enrollment prediction |
+| [group-sequential-design](group-sequential-design/) | Design group sequential clinical trials for survival endpoints (OS, PFS, DFS) with interim analyses, spending functions, multiplicity, and event/enrollment prediction |
 
 ## Usage
 
 **Option 1: Conversational / CLI**
 Ask your agent to directly enable a skill from this repo:
-> enable "group_sequential_design" skill from https://github.com/RConsortium/pharma_skills
+> enable "group-sequential-design" skill from https://github.com/RConsortium/pharma_skills
 
 **Option 2: Local IDE (Cursor, Windsurf, Copilot, etc.)**
 1. Clone this repository locally or as a git submodule.
 2. Symlink the skill you want into your project, or manually reference it in your configuration files (like `.cursorrules` or `llms.txt`):
-   `Please refer to /path/to/pharma_skills/group_sequential_design/SKILL.md for the trial design workflow.`
+   `Please refer to /path/to/pharma_skills/group-sequential-design/SKILL.md for the trial design workflow.`
 
 ## Contributing
 

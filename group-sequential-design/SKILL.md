@@ -1,5 +1,5 @@
 ---
-name: group_sequential_design
+name: group-sequential-design
 description: >
   Design group sequential clinical trials for survival endpoints (OS, PFS, DFS) with interim analyses,
   spending functions, boundaries, multiplicity, and event/enrollment prediction. Triggers on: Phase 3 trial design, sample size/events for survival endpoints, alpha spending, group sequential design, interim analysis planning, or enrollment/event timeline prediction for clinical trials.
@@ -11,7 +11,7 @@ description: >
 |------|-----------------|--------------|
 | `reference.md` | Design guidance, parameter tables, spending functions, key rules, failure modes, analysis framework, protocol references | After collecting user inputs, before writing R code |
 | `examples.md` | All R code examples organized by design pattern | When you need code for a specific pattern — read only the relevant section |
-| `post_design.md` | IA timing checks (warning messages, user options), verification procedure (pass criteria, lrsim code, log template) | After computing the design (step 6), before delivering |
+| `post-design.md` | IA timing checks (warning messages, user options), verification procedure (pass criteria, lrsim code, log template) | After computing the design (step 6), before delivering |
 
 Do NOT read these files upfront. Read them only when you reach the corresponding step.
 
@@ -470,7 +470,7 @@ Then read `reference.md` and the relevant sections of `examples.md` to proceed.
 
 ## IA Timing Checks
 
-After computing the design (step 6), **read `post_design.md` → "IA Timing Checks"** for the full checklist, warning messages, and user options.
+After computing the design (step 6), **read `post-design.md` → "IA Timing Checks"** for the full checklist, warning messages, and user options.
 
 Quick summary — all must pass before proceeding:
 - [ ] IA1 occurs at least [Q15 answer] months after enrollment ends
@@ -510,7 +510,7 @@ Key principle: **design the FA-triggering endpoint first** (it drives the study 
 
 ## Verification
 
-Every new design MUST be verified by simulation before delivery. **Read `post_design.md` → "Verification"** for the full procedure: what to verify, pass criteria, how to run `lrsim()`, and the verification log template.
+Every new design MUST be verified by simulation before delivery. **Read `post-design.md` → "Verification"** for the full procedure: what to verify, pass criteria, how to run `lrsim()`, and the verification log template.
 
 Quick pass criteria:
 - Power (H1): within ±2 pp of calculated

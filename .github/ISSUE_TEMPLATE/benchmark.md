@@ -7,7 +7,7 @@ assignees: ''
 ---
 
 ## Skills
-<!-- List the exact skill name(s) this benchmark is designed to test (e.g., group_sequential_design) -->
+<!-- List the exact skill name(s) this benchmark is designed to test (e.g., group-sequential-design) -->
 
 
 ## Query
