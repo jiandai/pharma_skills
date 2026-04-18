@@ -15,7 +15,6 @@
       "Bash(uvx:*)"
     ],
     "deny": [
-      "Bash(git push:*)",
       "Bash(git reset --hard:*)",
       "Bash(gh repo delete:*)",
       "Bash(rm -rf:*)"
