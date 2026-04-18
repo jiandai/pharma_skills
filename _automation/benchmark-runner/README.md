@@ -4,10 +4,12 @@ Automated benchmarking tool that compares AI agent performance **with** vs. **wi
 
 ## How It Works
 
-1. Scans the repo for any skill folder containing `evals/evals.json`
-2. For each eval case, launches two sub-agents in parallel (one with the skill instructions, one without)
-3. Scores both outputs against the assertions defined in the eval
-4. Posts a structured comparison table as a comment on the linked GitHub issue
+1. **Scans**: Locates all skill folders containing `evals/evals.json`.
+2. **Filters**: Checks linked GitHub issues to see if a benchmark for the **current skill version AND current model** already exists.
+3. **Prioritizes**: Selects exactly **one** pending evaluation based on the order of appearance in the `evals.json` file.
+4. **Executes**: Launches two sub-agents in parallel (with vs. without skill).
+5. **Scores**: Evaluates both outputs against the defined assertions.
+6. **Posts**: Comments the structured comparison table directly to the GitHub issue.
 
 ## Usage
 
