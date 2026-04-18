@@ -5,19 +5,28 @@ description: Converts one or more GitHub Issues into standardized benchmark data
 
 # Issue to Eval
 
-Converts GitHub Issues into standardized benchmark evaluation cases (JSON) and saves them to the appropriate skill directory.
+Converts GitHub Issues into standardized benchmark evaluation cases (JSON) and saves them to the appropriate skill directory. It automatically discovers new issues labeled `benchmark` and updates existing evaluations if the issue content has been modified.
 
 ## Task Flow
 
-1. **Import Issue Data**
-   For each issue number or URL provided by the user, run the import script:
-   ```bash
-   python3 _automation/issue-to-eval/scripts/import_issue_eval.py --issue {ISSUE_NUMBER_OR_URL}
-   ```
+### Option A: Sync All Benchmarks (Recommended)
+Use this to automatically identify and update all evaluations from GitHub:
+```bash
+python3 _automation/issue-to-eval/scripts/sync_benchmarks.py
+```
+- Discovers all issues with the `benchmark` label.
+- Compares each issue against the local `evals.json`.
+- Adds new cases and updates existing ones if the prompt or assertions have changed.
+
+### Option B: Import Specific Issue
+Use this for a one-off import or testing:
+```bash
+python3 _automation/issue-to-eval/scripts/import_issue_eval.py --issue {ISSUE_NUMBER_OR_URL}
+```
    
-2. **Review Output**
-   - The script will automatically parse headers (`## Skills`, `## Query`, etc.), deduplicate by issue ID, and append to the correct `evals/evals.json` file.
-   - Report the status (Success/Skipped/Error) to the user.
+## Review Output
+- Report the status for each issue (Success/Updated/Skipped/Error) to the user.
+- If an issue is modified on GitHub, running the sync script will propagate those changes to the local evaluation suite.
 
 ## Requirements
 - The issue MUST follow the standard benchmark template with headers: `## Skills`, `## Query`, `## Expected Output`, `## Attached Files / Input Context`, and `## Rubric Criteria (Assertions)`.

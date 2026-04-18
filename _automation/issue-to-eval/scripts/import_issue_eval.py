@@ -59,17 +59,37 @@ def save_to_evals(eval_entry, skill_name):
     else:
         data = {"skill_name": skill_name, "evals": []}
         
-    # Deduplicate by ID
-    existing_ids = {e.get("id") for e in data["evals"]}
-    if eval_entry["id"] in existing_ids:
-        return f"Skipped: {eval_entry['id']} already exists in {skill_name}/evals/evals.json"
+    # Check if ID exists and compare
+    found_idx = -1
+    for i, existing in enumerate(data["evals"]):
+        if existing.get("id") == eval_entry["id"]:
+            found_idx = i
+            break
+    
+    if found_idx != -1:
+        # Compare important fields to detect modifications
+        existing = data["evals"][found_idx]
+        changed = False
+        for field in ["prompt", "expected_output", "files", "assertions"]:
+            if existing.get(field) != eval_entry.get(field):
+                changed = True
+                break
         
-    data["evals"].append(eval_entry)
+        if not changed:
+            return f"Skipped: {eval_entry['id']} in {skill_name} is up to date."
+        
+        # Update existing entry
+        data["evals"][found_idx] = eval_entry
+        status = f"Updated: {eval_entry['id']} in {skill_name}/evals/evals.json (content changed)"
+    else:
+        # Append new entry
+        data["evals"].append(eval_entry)
+        status = f"Success: Added {eval_entry['id']} to {skill_name}/evals/evals.json"
     
     with open(eval_file, "w") as f:
         json.dump(data, f, indent=2)
     
-    return f"Success: Added {eval_entry['id']} to {skill_name}/evals/evals.json"
+    return status
 
 def main():
     parser = argparse.ArgumentParser()
