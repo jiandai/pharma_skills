@@ -1,44 +1,62 @@
 # Skill Benchmark Runner
 
-Automated benchmarking tool that compares AI agent performance **with** vs. **without** a skill, then posts scored results directly to the originating GitHub issue.
+The **Skill Benchmark Runner** is an automated framework designed to quantify the value of an AI agent skill. It performs a "fair fight" comparison between two agents—one equipped with the specialized `SKILL.md` and one using only its base knowledge—to measure improvements in accuracy, efficiency, and consistency.
 
 ## How It Works
 
-1. **Scans**: Locates all skill folders containing `evals/evals.json`.
-2. **Filters**: Checks linked GitHub issues to see if a benchmark for the **current skill version AND current model** already exists.
-3. **Prioritizes**: Selects exactly **one** pending evaluation based on the order of appearance in the `evals.json` file.
-4. **Executes**: Launches two sub-agents in parallel (with vs. without skill).
-5. **Scores**: Evaluates both outputs against the defined assertions.
-6. **Posts**: Comments the structured comparison table directly to the GitHub issue.
+1.  **Discovery**: Scans the repository for all folders containing an `evals/evals.json` file.
+2.  **Deduplication**: Checks the linked GitHub issues (e.g., `#21`) to see if a benchmark has already been posted for the **current skill version (Git SHA)** and the **current model** (e.g., Claude 3.5 Sonnet).
+3.  **Parallel Execution**: Launches two independent sub-agents simultaneously:
+    *   **Agent A (With Skill)**: Pre-loaded with the `SKILL.md` instructions and all supporting resources.
+    *   **Agent B (Without Skill)**: Given only the raw prompt and files, with explicit instructions *not* to use any skill data.
+4.  **Objective Scoring**: Evaluates the artifacts produced by both agents (code, data, reports) against a set of predefined **Assertions**.
+5.  **Performance Tracking**: Records technical metrics including **Execution Time**, **Token Usage**, and **Tool Success Rates**.
+6.  **Reporting**: Generates a detailed Markdown report and posts it as a comment on the originating GitHub issue.
+
+## Understanding `evals.json` (Example: Issue #21)
+
+Each entry in the `evals.json` file controls a different part of the benchmark lifecycle. Using **Issue #21** as an example:
+
+| Field | Purpose | Lifecycle Role |
+|---|---|---|
+| **`id`** | `"github-issue-21"` | **Deduplication & Posting**: Used to check if this benchmark already exists on GitHub and where to post the results. |
+| **`prompt`** | `"I'm designing a Phase 3 trial..."` | **Agent Input**: This is the raw request given to both Agents. It defines the constraints (N < 450) and statistical parameters. |
+| **`files`** | `[]` (None in this case) | **Context**: Any URLs or local paths listed here are downloaded and attached to both agents so they have the same data context. |
+| **`expected_output`** | `"All outputs in output/...R, .json..."` | **Documentation**: Describes the target state. It is used by humans to understand what files the agents are expected to create. |
+| **`assertions`** | `["gsd_design.R exists...", "total_N < 450..."]` | **Grading**: The automated rubric. After agents finish, their `output_A/` and `output_B/` are checked against these rules to calculate the score. |
+
+## Benchmark Report Features
+
+Each automated report provides a deep-dive comparison:
+
+| Section | Description |
+|---|---|
+| **Run Metadata** | Captures the Model, Skill SHA, and a link to **Detailed Outputs** (Zip or Gist). |
+| **Scorecard** | High-level comparison of the total Score (%), Assertions met, and performance metrics (Time/Tokens). |
+| **Assertion Breakdown** | A line-by-line check of where each agent succeeded or failed. |
+| **Key Observations** | Human-readable analysis of the qualitative differences in code quality or reasoning. |
+| **Debugging Info** | Collapsible technical logs showing tool call success rates and any system errors/retries. |
+
+## Adding New Benchmarks
+
+To add a new test case to a skill's evaluation suite:
+1.  Open a new GitHub Issue with the `benchmark` label.
+2.  Follow the template headers: `## Skills`, `## Query`, `## Expected Output`, and `## Rubric Criteria (Assertions)`.
+3.  Run the **Issue to Eval** skill (`python3 _automation/issue-to-eval/scripts/sync_benchmarks.py`) to automatically import the issue into the skill's `evals/evals.json`.
 
 ## Usage
 
-### As a Cowork Scheduled Task
+### As a Scheduled Workflow
+This tool is optimized for CI/CD or scheduled task runners. Provide the `SKILL.md` as the system instruction and trigger it periodically to ensure skill quality doesn't regress as the codebase evolves.
 
-This skill is designed to be used as a [Cowork](https://claude.ai) scheduled task. Import `SKILL.md` as the task prompt and set it to manual trigger.
-
-### As a Standalone Skill
-
-Point any agents.md-compatible agent at this folder and ask it to "run benchmarks" or "compare skill performance".
-
-## Report Format
-
-Each benchmark posts a comment containing:
-
-| Field | Description |
-|---|---|
-| **Eval ID** | Links back to the GitHub issue (e.g. `github-issue-2`) |
-| **Model** | Which Claude model both agents used |
-| **Skill version** | Git commit SHA of the skill's `SKILL.md` at time of run |
-| **Scorecard** | Side-by-side pass/partial/fail counts |
-| **Assertion breakdown** | Per-assertion comparison |
-| **Verdict** | Summary of where the skill helped (or didn't) |
+### Manual Trigger
+Ask your agent:
+> "Run benchmarks for the group-sequential-design skill."
+> "Compare the latest skill version against the base model for Issue #21."
 
 ## Requirements
-
-- GitHub CLI (`gh`) authenticated with write access to the repo, **or** Claude in Chrome as fallback
-- Access to the Agent tool for parallel sub-agent execution
+- **GitHub CLI (`gh`)**: Must be authenticated with write access to post comments and read issues.
+- **Agent Tool**: Required for launching parallel sub-agents (e.g., using the `generalist` tool).
 
 ## License
-
 MIT
