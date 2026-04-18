@@ -1,6 +1,5 @@
 ---
 name: issue-to-eval
-version: "1.0.0"
 description: Converts one or more GitHub Issues into standardized benchmark data (evals.json) using automated scripts. Use when a user provides an issue number or URL and wants to add it to a skill's evaluation suite.
 ---
 

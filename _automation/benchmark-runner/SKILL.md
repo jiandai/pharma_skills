@@ -1,6 +1,5 @@
 ---
 name: benchmark-runner
-version: "1.0.0"
 description: Auto-discover all skills with evals in RConsortium/pharma_skills, benchmark each with vs. without skill using parallel sub-agents, and post scored results to the linked GitHub issue. Use whenever someone says "run benchmarks", "compare skill performance", "eval the skills", or wants to measure whether a skill improves output quality.
 ---
 

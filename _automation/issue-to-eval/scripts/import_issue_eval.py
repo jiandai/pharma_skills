@@ -31,7 +31,7 @@ def parse_issue_markdown(body: str) -> dict:
         "skill":           r"## Skills\s+(.*?)(?=\n##|$)",
         "prompt":          r"## Query\s+(.*?)(?=\n##|$)",
         "expected_output": r"## Expected Output\s+(.*?)(?=\n##|$)",
-        "files":           r"## Attached Files / Input Context \(Optional\)\s+(.*?)(?=\n##|$)",
+        "files":           r"## Attached Files / Input Context \(Optional\)\n(.*?)(?=\n##|$)",
         "assertions":      r"## Rubric Criteria \(Assertions\)\s+(.*?)(?=\n##|$)",
     }
 

@@ -1,6 +1,5 @@
 ---
 name: weekly-summary
-version: "1.0.0"
 description: Generate a concise weekly progress summary for the pharma_skills repository. Use this to summarize recent commits, PRs, and issues, then post the update to Slack and save it as a markdown file.
 ---
 
