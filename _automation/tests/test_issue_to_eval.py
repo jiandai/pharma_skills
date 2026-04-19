@@ -60,6 +60,28 @@ class TestParseIssueMarkdown(unittest.TestCase):
         parsed = ite.parse_issue_markdown(body)
         self.assertEqual(parsed["skill_name"], "group-sequential-design")
 
+    def test_parses_empty_header(self):
+        body = GOLDEN_BODY.replace("Design a Phase 3 trial for OS in 1L NSCLC.", "")
+        parsed = ite.parse_issue_markdown(body)
+        self.assertEqual(parsed["prompt"], "")
+        self.assertEqual(parsed["expected_output"], "A gsd_design.R file using gsSurv() with N <= 450.")
+
+    def test_parses_empty_section_without_capturing_next(self):
+        body = """## Skills
+group-sequential-design
+
+## Query
+
+## Expected Output
+Expected output content.
+
+## Rubric Criteria (Assertions)
+- assertion 1
+"""
+        parsed = ite.parse_issue_markdown(body)
+        self.assertEqual(parsed.get("prompt", ""), "")
+        self.assertEqual(parsed.get("expected_output", ""), "Expected output content.")
+
     def test_warns_on_missing_assertions(self):
         body = GOLDEN_BODY.replace("## Rubric Criteria (Assertions)\n- gsd_design.R exists and calls gsSurv()\n- gsd_results.json exists and total_N < 450\n", "## Rubric Criteria (Assertions)\n\n")
         import io
