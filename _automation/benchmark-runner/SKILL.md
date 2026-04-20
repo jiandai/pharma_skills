@@ -11,6 +11,23 @@ Repository: `RConsortium/pharma_skills` (https://github.com/RConsortium/pharma_s
 
 ---
 
+## Cloud Environment Setup
+
+If running as a Claude Code routine in the cloud environment, ensure the following setup is performed once per session to enable CRAN access and R package installation:
+
+1. **Network Access**: Verify the environment is configured with `Network access: Full` or `Custom` (allowing `*.r-project.org`).
+2. **Install R**: If `R` is not available, run the following setup command (requires root/sudo):
+   ```bash
+   sudo apt update && sudo apt install -y r-base
+   ```
+3. **Fast Package Installation**: Always use the **Posit Public Package Manager** for pre-compiled Linux binaries to significantly reduce installation time:
+   ```r
+   options(repos = c(CRAN = "https://packagemanager.posit.co/cran/__linux__/jammy/latest"))
+   install.packages("gsDesign") # Example
+   ```
+
+---
+
 ## Step 1 — Get the Next Evaluation Case
 
 Run the dispatcher script to identify the highest-priority pending evaluation:
@@ -99,7 +116,6 @@ Write a Markdown file at `/tmp/benchmark_comment_{skill}_{eval_id}.md` using thi
 | **Skill version** | `{_skill_sha}` |
 | **Triggered by** | Scheduled/Manual |
 | **Total session tokens** | `{total_tokens}` |
-| **Detailed Outputs** | [View Archive/Gist]({upload_url}) |
 
 ### Scorecard
 
@@ -113,6 +129,23 @@ Write a Markdown file at `/tmp/benchmark_comment_{skill}_{eval_id}.md` using thi
 | **{Key Metric 1}** | {value_A1} | {value_B1} |
 | **{Key Metric 2}** | {value_A2} | {value_B2} |
 
+### Key Observations
+
+- {2-4 bullet points comparing both agents}
+
+### Verdict
+
+{1-2 sentence overall verdict}
+
+---
+
+## Technical Details & Artifacts
+
+<details>
+<summary>View Assertion Breakdown, Code Artifacts, and Logs</summary>
+
+
+
 ### Assertion Breakdown
 
 | Assertion | With Skill | Without Skill |
@@ -120,33 +153,38 @@ Write a Markdown file at `/tmp/benchmark_comment_{skill}_{eval_id}.md` using thi
 | {assertion_text_1} | {Pass/Partial/Fail} | {Pass/Partial/Fail} |
 | {assertion_text_2} | {Pass/Partial/Fail} | {Pass/Partial/Fail} |
 
-### Key Observations
 
-- {2-4 bullet points comparing both agents}
 
 ### Debugging Information
 
-<details>
-<summary>Agent A (With Skill) Execution Details</summary>
-
+#### Agent A (With Skill)
 - **Total Tool Calls:** {count}
 - **Tool Success Rate:** {rate}%
 - **Errors/Retries:** {any errors or "None"}
-- **Environment Note:** {e.g. R unavailable, specific library missing}
-</details>
 
-<details>
-<summary>Agent B (Without Skill) Execution Details</summary>
-
+#### Agent B (Without Skill)
 - **Total Tool Calls:** {count}
 - **Tool Success Rate:** {rate}%
 - **Errors/Retries:** {any errors or "None"}
-- **Environment Note:** {same or different}
+
+### Detailed Artifacts
+
+**Detailed Outputs:** [View Full Archive/Gist]({upload_url})
+
+#### Agent A (With Skill)
+{Repeat for key files like .R, .py, .json}
+**{file_name}**
+```{language}
+{file_content}
+```
+
+#### Agent B (Without Skill)
+**{file_name}**
+```{language}
+{file_content}
+```
+
 </details>
-
-### Verdict
-
-{1-2 sentence overall verdict}
 
 ---
 *Posted automatically by `benchmark-runner` · Repo: https://github.com/RConsortium/pharma_skills*
