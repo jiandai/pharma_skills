@@ -144,7 +144,7 @@ Write a Markdown file at `/tmp/benchmark_comment_{skill}_{eval_id}.md` using thi
 <details>
 <summary>View Assertion Breakdown, Code Artifacts, and Logs</summary>
 
-**Detailed Outputs:** [View Full Archive/Gist]({upload_url})
+
 
 ### Assertion Breakdown
 
@@ -168,6 +168,8 @@ Write a Markdown file at `/tmp/benchmark_comment_{skill}_{eval_id}.md` using thi
 - **Errors/Retries:** {any errors or "None"}
 
 ### Detailed Artifacts
+
+**Detailed Outputs:** [View Full Archive/Gist]({upload_url})
 
 #### Agent A (With Skill)
 {Repeat for key files like .R, .py, .json}
