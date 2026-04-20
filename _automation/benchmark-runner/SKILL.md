@@ -153,6 +153,20 @@ Write a Markdown file at `/tmp/benchmark_comment_{skill}_{eval_id}.md` using thi
 | {assertion_text_1} | {Pass/Partial/Fail} | {Pass/Partial/Fail} |
 | {assertion_text_2} | {Pass/Partial/Fail} | {Pass/Partial/Fail} |
 
+
+
+### Debugging Information
+
+#### Agent A (With Skill)
+- **Total Tool Calls:** {count}
+- **Tool Success Rate:** {rate}%
+- **Errors/Retries:** {any errors or "None"}
+
+#### Agent B (Without Skill)
+- **Total Tool Calls:** {count}
+- **Tool Success Rate:** {rate}%
+- **Errors/Retries:** {any errors or "None"}
+
 ### Detailed Artifacts
 
 #### Agent A (With Skill)
@@ -167,18 +181,6 @@ Write a Markdown file at `/tmp/benchmark_comment_{skill}_{eval_id}.md` using thi
 ```{language}
 {file_content}
 ```
-
-### Debugging Information
-
-#### Agent A (With Skill)
-- **Total Tool Calls:** {count}
-- **Tool Success Rate:** {rate}%
-- **Errors/Retries:** {any errors or "None"}
-
-#### Agent B (Without Skill)
-- **Total Tool Calls:** {count}
-- **Tool Success Rate:** {rate}%
-- **Errors/Retries:** {any errors or "None"}
 
 </details>
 
