@@ -207,15 +207,52 @@ def main() -> None:
             eval_case["_bundled_resources"] = bundled
 
             # ── Pre-build Agent B prompt (deterministic, no LLM discretion) ──
-            # Only the language constraint (if present) + the raw eval prompt.
+            # Only the language constraint (if present) + the raw eval prompt +
+            # any input files from the eval case.
             # Nothing else — no filenames, no package hints, no structure.
             lang_prefix = (
                 f"Use {eval_case['language']} for this task.\n\n"
                 if eval_case.get("language") else ""
             )
-            files_block = ""
-            for fname, fcontent in (eval_case.get("files") or {}).items():
-                files_block += f"\n\n--- {fname} ---\n{fcontent}"
+
+            # Resolve input files referenced in the eval case.
+            # files is a list of repo-relative paths, e.g. ["data/patients.csv"].
+            # Text files are inlined into the prompt directly.
+            # Binary files (images, PDFs, etc.) cannot be embedded as text, so
+            # they are written to _input_dir at run-time by the benchmark runner
+            # and the prompt tells the agent where to find them.
+            TEXT_EXTENSIONS = {
+                ".csv", ".tsv", ".txt", ".md", ".r", ".py", ".json",
+                ".yaml", ".yml", ".toml", ".xml", ".html", ".sql",
+            }
+            files_inline_block = ""
+            binary_file_names: list[str] = []
+
+            for fpath_str in (eval_case.get("files") or []):
+                fpath = REPO_ROOT / fpath_str
+                ext = Path(fpath_str).suffix.lower()
+                if ext in TEXT_EXTENSIONS:
+                    try:
+                        content = fpath.read_text()
+                        files_inline_block += (
+                            f"\n\n--- {Path(fpath_str).name} ---\n{content}"
+                        )
+                    except OSError as e:
+                        print(
+                            f"Warning: could not read input file {fpath_str}: {e}",
+                            file=sys.stderr,
+                        )
+                else:
+                    binary_file_names.append(Path(fpath_str).name)
+
+            binary_notice = ""
+            if binary_file_names:
+                listed = ", ".join(f"`{n}`" for n in binary_file_names)
+                binary_notice = (
+                    f"\n\nBinary input file(s) are available in the `input/` "
+                    f"directory: {listed}"
+                )
+
             usage_suffix = (
                 "\n\nAt the very end of your response, state your best estimate of the "
                 "total tokens used in this turn (input + output) using the format: "
@@ -227,9 +264,14 @@ def main() -> None:
                 "Save all generated files into a directory named `output_B/`.\n\n"
                 f"{lang_prefix}"
                 f"{eval_case['prompt']}"
-                f"{files_block}"
+                f"{files_inline_block}"
+                f"{binary_notice}"
                 f"{usage_suffix}"
             )
+            eval_case["_binary_input_files"] = [
+                str(REPO_ROOT / p) for p in (eval_case.get("files") or [])
+                if Path(p).suffix.lower() not in TEXT_EXTENSIONS
+            ]
 
             eligible_evals.append(eval_case)
 
