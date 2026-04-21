@@ -115,7 +115,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Discover evals from the centralized evals directory
-    evals_dir = REPO_ROOT / "evals"
+    evals_dir = REPO_ROOT / "_automation" / "evals"
     if not evals_dir.exists():
         print("STATUS: UP_TO_DATE")
         return

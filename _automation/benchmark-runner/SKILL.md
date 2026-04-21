@@ -5,7 +5,7 @@ description: Auto-discover all skills with evals in RConsortium/pharma_skills, b
 
 # Skill Benchmark Runner
 
-Benchmark every evaluation case in the `evals/` directory of the `RConsortium/pharma_skills` repository. For each eval case, run two Claude sub-agents in parallel — one using the skill, one without — then post a scored comparison as a comment on the originating GitHub issue.
+Benchmark every evaluation case in the `_automation/evals/` directory of the `RConsortium/pharma_skills` repository. For each eval case, run two Claude sub-agents in parallel — one using the skill, one without — then post a scored comparison as a comment on the originating GitHub issue.
 
 Repository: `RConsortium/pharma_skills` (https://github.com/RConsortium/pharma_skills)
 

@@ -5,7 +5,7 @@ description: Converts one or more GitHub Issues into standardized benchmark data
 
 # Issue to Eval
 
-Converts GitHub Issues into standardized benchmark evaluation cases (JSON) and saves them to the root `evals/` directory. It automatically discovers new issues labeled `benchmark` and updates existing evaluations if the issue content has been modified.
+Converts GitHub Issues into standardized benchmark evaluation cases (JSON) and saves them to the `_automation/evals/` directory. It automatically discovers new issues labeled `benchmark` and updates existing evaluations if the issue content has been modified.
 
 ## Task Flow
 
@@ -30,3 +30,4 @@ python3 _automation/issue-to-eval/scripts/import_issue_eval.py --issue {ISSUE_NU
 
 ## Requirements
 - The issue MUST follow the standard benchmark template with headers: `## Skills`, `## Query`, `## Expected Output`, `## Attached Files / Input Context`, and `## Rubric Criteria (Assertions)`.
+s)`.

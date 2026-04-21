@@ -70,7 +70,7 @@ def save_to_evals(eval_entry: dict, skill_name: str) -> str:
     if not skill_name or skill_name == "unknown-skill":
         return "Error: Could not determine target skill name from issue."
 
-    target_dir = os.path.join("evals")
+    target_dir = os.path.join("_automation", "evals")
     os.makedirs(target_dir, exist_ok=True)
     eval_file = os.path.join(target_dir, f"{eval_entry['id']}.json")
 
@@ -88,11 +88,11 @@ def save_to_evals(eval_entry: dict, skill_name: str) -> str:
             for field in ("prompt", "expected_output", "files", "assertions", "target_skills")
         )
         if not changed:
-            return f"Skipped: {eval_entry['id']} in evals/ is up to date."
+            return f"Skipped: {eval_entry['id']} in _automation/evals/ is up to date."
         
-        status = f"Updated: {eval_entry['id']} in evals/ (content changed)"
+        status = f"Updated: {eval_entry['id']} in _automation/evals/ (content changed)"
     else:
-        status = f"Success: Added {eval_entry['id']} to evals/"
+        status = f"Success: Added {eval_entry['id']} to _automation/evals/"
 
     with open(eval_file, "w") as f:
         json.dump(eval_entry, f, indent=2)

@@ -114,7 +114,7 @@ class TestSaveToEvals(unittest.TestCase):
             import os
             orig_join = os.path.join
             def patched_join(*args):
-                if args and args[0] == "evals":
+                if len(args) >= 2 and args[0] == "_automation" and args[1] == "evals":
                     return orig_join(tmpdir, *args)
                 return orig_join(*args)
                 
@@ -123,7 +123,7 @@ class TestSaveToEvals(unittest.TestCase):
                 self.assertIn("Success", status)
                 
                 # Verify file was created
-                path = Path(tmpdir) / "evals" / "github-issue-1.json"
+                path = Path(tmpdir) / "_automation" / "evals" / "github-issue-1.json"
                 self.assertTrue(path.exists())
                 data = json.loads(path.read_text())
                 self.assertEqual(data["target_skills"], ["my-skill"])
@@ -133,7 +133,7 @@ class TestSaveToEvals(unittest.TestCase):
             import os
             orig_join = os.path.join
             def patched_join(*args):
-                if args and args[0] == "evals":
+                if len(args) >= 2 and args[0] == "_automation" and args[1] == "evals":
                     return orig_join(tmpdir, *args)
                 return orig_join(*args)
 
@@ -144,7 +144,7 @@ class TestSaveToEvals(unittest.TestCase):
                 status = ite.save_to_evals(entry, "my-skill")
                 self.assertIn("Added", status)
 
-                path = Path(tmpdir) / "evals" / "github-issue-1.json"
+                path = Path(tmpdir) / "_automation" / "evals" / "github-issue-1.json"
                 
                 # Same content → skip
                 status2 = ite.save_to_evals(entry, "my-skill")
