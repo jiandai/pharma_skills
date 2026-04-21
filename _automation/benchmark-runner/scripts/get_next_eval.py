@@ -12,6 +12,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BUNDLE_SIZE_LIMIT_BYTES = 100 * 1024  # 100 KB (fix 2.3)
 RUNS_DIR = REPO_ROOT / "_automation" / "benchmark-runner" / "runs"
+TEXT_EXTENSIONS = {
+    ".csv", ".tsv", ".txt", ".md", ".r", ".py", ".json",
+    ".yaml", ".yml", ".toml", ".xml", ".html", ".sql",
+}
 
 
 def normalize_model_name(name: str) -> str:
@@ -92,6 +96,91 @@ def check_github_comments(issue_id: str, target_sha: str, target_model: str) -> 
         if has_sha and has_model:
             return True
     return False
+
+
+def build_agent_prompts(eval_case: dict) -> None:
+    """Build matched A/B prompts from one neutral task payload."""
+    task_parts: list[str] = []
+    if eval_case.get("language"):
+        task_parts.append(f"Use {eval_case['language']} for this task.")
+    task_parts.append(eval_case["prompt"])
+
+    input_files: list[dict[str, str]] = []
+    for idx, fpath_str in enumerate(eval_case.get("files") or [], start=1):
+        source_path = REPO_ROOT / fpath_str
+        ext = Path(fpath_str).suffix.lower()
+        alias = f"input_{idx:03d}{ext or '.dat'}"
+        kind = "text" if ext in TEXT_EXTENSIONS else "binary"
+        input_files.append({
+            "alias": alias,
+            "source": str(source_path),
+            "kind": kind,
+        })
+
+        if kind == "text":
+            try:
+                content = source_path.read_text()
+            except OSError as e:
+                print(
+                    f"Warning: could not read input file {fpath_str}: {e}",
+                    file=sys.stderr,
+                )
+                continue
+            task_parts.append(f"--- {alias} ---\n{content}")
+
+    if input_files:
+        aliases = ", ".join(f"`{item['alias']}`" for item in input_files)
+        task_parts.append(f"Input file(s) are staged in the `input/` directory: {aliases}")
+
+    usage_suffix = (
+        "At the very end of your response, state your best estimate of the "
+        "total tokens used in this turn (input + output) using the format: "
+        "`[USAGE: {total_tokens}]`"
+    )
+    common_task_prompt = "\n\n".join(task_parts)
+    eval_case["_input_files"] = input_files
+    eval_case["_common_task_prompt"] = common_task_prompt
+    eval_case["_prompt_a"] = (
+        "Follow the provided skill workflow to complete this task. "
+        "Save all generated files into a directory named `output_A/`. "
+        "Produce all expected outputs.\n\n"
+        f"{common_task_prompt}\n\n"
+        f"{usage_suffix}"
+    )
+    eval_case["_prompt_b"] = (
+        "Complete this task using only your base knowledge and tools. "
+        "Do NOT use any SKILL.md, skill instructions, bundled skill resources, "
+        "or repository skill files. "
+        "Save all generated files into a directory named `output_B/`. "
+        "Produce all expected outputs.\n\n"
+        f"{common_task_prompt}\n\n"
+        f"{usage_suffix}"
+    )
+    eval_case["_scoring_prompt"] = (
+        "Score two anonymized benchmark candidates against the rubric below. "
+        "Do not infer which candidate used a skill. Score only the artifacts "
+        "available under `candidate_1/` and `candidate_2/`.\n\n"
+        f"Task prompt:\n{eval_case['prompt']}\n\n"
+        f"Expected output:\n{eval_case.get('expected_output', '')}\n\n"
+        "Assertions:\n"
+        + "\n".join(f"- {assertion}" for assertion in eval_case.get("assertions", []))
+        + "\n\nReturn a concise score table with Pass, Partial, or Fail for each "
+        "assertion and each candidate. Do not mention or infer treatment labels."
+    )
+
+    blind_seed = hashlib.sha256(
+        f"{eval_case.get('id', '')}:{eval_case.get('_skill_sha', '')}".encode()
+    ).hexdigest()
+    if int(blind_seed[:2], 16) % 2 == 0:
+        eval_case["_blinded_scoring_map"] = {
+            "candidate_1": "output_A",
+            "candidate_2": "output_B",
+        }
+    else:
+        eval_case["_blinded_scoring_map"] = {
+            "candidate_1": "output_B",
+            "candidate_2": "output_A",
+        }
 
 
 def write_run_manifest(eval_case: dict, model: str, skill_sha: str, status: str) -> None:
@@ -206,72 +295,7 @@ def main() -> None:
                     bundled[rel] = content
             eval_case["_bundled_resources"] = bundled
 
-            # ── Pre-build Agent B prompt (deterministic, no LLM discretion) ──
-            # Only the language constraint (if present) + the raw eval prompt +
-            # any input files from the eval case.
-            # Nothing else — no filenames, no package hints, no structure.
-            lang_prefix = (
-                f"Use {eval_case['language']} for this task.\n\n"
-                if eval_case.get("language") else ""
-            )
-
-            # Resolve input files referenced in the eval case.
-            # files is a list of repo-relative paths, e.g. ["data/patients.csv"].
-            # Text files are inlined into the prompt directly.
-            # Binary files (images, PDFs, etc.) cannot be embedded as text, so
-            # they are written to _input_dir at run-time by the benchmark runner
-            # and the prompt tells the agent where to find them.
-            TEXT_EXTENSIONS = {
-                ".csv", ".tsv", ".txt", ".md", ".r", ".py", ".json",
-                ".yaml", ".yml", ".toml", ".xml", ".html", ".sql",
-            }
-            files_inline_block = ""
-            binary_file_names: list[str] = []
-
-            for fpath_str in (eval_case.get("files") or []):
-                fpath = REPO_ROOT / fpath_str
-                ext = Path(fpath_str).suffix.lower()
-                if ext in TEXT_EXTENSIONS:
-                    try:
-                        content = fpath.read_text()
-                        files_inline_block += (
-                            f"\n\n--- {Path(fpath_str).name} ---\n{content}"
-                        )
-                    except OSError as e:
-                        print(
-                            f"Warning: could not read input file {fpath_str}: {e}",
-                            file=sys.stderr,
-                        )
-                else:
-                    binary_file_names.append(Path(fpath_str).name)
-
-            binary_notice = ""
-            if binary_file_names:
-                listed = ", ".join(f"`{n}`" for n in binary_file_names)
-                binary_notice = (
-                    f"\n\nBinary input file(s) are available in the `input/` "
-                    f"directory: {listed}"
-                )
-
-            usage_suffix = (
-                "\n\nAt the very end of your response, state your best estimate of the "
-                "total tokens used in this turn (input + output) using the format: "
-                "`[USAGE: {total_tokens}]`"
-            )
-            eval_case["_prompt_b"] = (
-                "Complete this task using only your base knowledge and tools. "
-                "Do NOT use any SKILL.md or skill instructions. "
-                "Save all generated files into a directory named `output_B/`.\n\n"
-                f"{lang_prefix}"
-                f"{eval_case['prompt']}"
-                f"{files_inline_block}"
-                f"{binary_notice}"
-                f"{usage_suffix}"
-            )
-            eval_case["_binary_input_files"] = [
-                str(REPO_ROOT / p) for p in (eval_case.get("files") or [])
-                if Path(p).suffix.lower() not in TEXT_EXTENSIONS
-            ]
+            build_agent_prompts(eval_case)
 
             eligible_evals.append(eval_case)
 

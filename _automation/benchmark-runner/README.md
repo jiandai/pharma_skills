@@ -6,10 +6,10 @@ The **Skill Benchmark Runner** is an automated framework designed to quantify th
 
 1.  **Discovery**: Scans the `evals/` directory for all `.json` evaluation cases.
 2.  **Deduplication**: Checks the linked GitHub issues (e.g., `#21`) to see if a benchmark has already been posted for the **current skill version (Git SHA)** and the **current model** (e.g., GPT-4o, Gemini 2.0 Flash, Claude 3.7 Sonnet).
-3.  **Parallel Execution**: Launches two independent sub-agents simultaneously:
-    *   **Agent A (With Skill)**: Pre-loaded with the `SKILL.md` instructions and all supporting resources.
-    *   **Agent B (Without Skill)**: Given only the raw prompt and files, with explicit instructions *not* to use any skill data.
-4.  **Objective Scoring**: Evaluates the artifacts produced by both agents (code, data, reports) against a set of predefined **Assertions**.
+3.  **Matched Parallel Execution**: Launches two fresh, isolated sessions with the same model, tools, cwd shape, and neutralized input file names:
+    *   **Agent A (With Skill)**: Receives the common task prompt plus the `SKILL.md` instructions and bundled resources.
+    *   **Agent B (Without Skill)**: Receives the same common task prompt, with explicit instructions *not* to use any skill data.
+4.  **Blinded Scoring**: Evaluates anonymized `candidate_1` and `candidate_2` artifacts against predefined **Assertions**, then unblinds the mapping back to with-skill vs. without-skill after scoring.
 5.  **Performance Tracking**: Records technical metrics including **Execution Time**, **Token Usage**, and **Tool Success Rates**.
 6.  **Reporting**: Generates a detailed Markdown report and posts it as a comment on the originating GitHub issue.
 
@@ -20,10 +20,10 @@ Each evaluation JSON file controls a different part of the benchmark lifecycle. 
 | Field | Purpose | Lifecycle Role |
 |---|---|---|
 | **`id`** | `"github-issue-21"` | **Deduplication & Posting**: Used to check if this benchmark already exists on GitHub and where to post the results. |
-| **`prompt`** | `"I'm designing a Phase 3 trial..."` | **Agent Input**: This is the raw request given to both Agents. It defines the constraints (N < 450) and statistical parameters. |
-| **`files`** | `[]` (None in this case) | **Context**: Any URLs or local paths listed here are downloaded and attached to both agents so they have the same data context. |
+| **`prompt`** | `"I'm designing a Phase 3 trial..."` | **Agent Input**: This is the raw request used to build the common prompt for both agents. It defines the constraints (N < 450) and statistical parameters. |
+| **`files`** | `[]` (None in this case) | **Context**: Any local paths listed here are embedded or staged under neutral aliases such as `input_001.csv` so original filenames do not leak hints. |
 | **`expected_output`** | `"All outputs in output/...R, .json..."` | **Documentation**: Describes the target state. It is used by humans to understand what files the agents are expected to create. |
-| **`assertions`** | `["gsd_design.R exists...", "total_N < 450..."]` | **Grading**: The automated rubric. After agents finish, their `output_A/` and `output_B/` are checked against these rules to calculate the score. |
+| **`assertions`** | `["gsd_design.R exists...", "total_N < 450..."]` | **Grading**: The rubric. After agents finish, blinded candidate outputs are checked against these rules to calculate the score. |
 
 ## Benchmark Report Features
 
@@ -33,7 +33,7 @@ Each automated report provides a deep-dive comparison:
 |---|---|
 | **Run Metadata** | Captures the Model, Skill SHA, and a link to **Detailed Outputs** (Zip or Gist). |
 | **Scorecard** | High-level comparison of the total Score (%), Assertions met, and performance metrics (Time/Tokens). |
-| **Assertion Breakdown** | A line-by-line check of where each agent succeeded or failed. |
+| **Assertion Breakdown** | A line-by-line check of where each blinded candidate succeeded or failed, translated back to agent labels after unblinding. |
 | **Key Observations** | Human-readable analysis of the qualitative differences in code quality or reasoning. |
 | **Debugging Info** | Collapsible technical logs showing tool call success rates and any system errors/retries. |
 
@@ -56,7 +56,7 @@ Ask your agent:
 
 ## Requirements
 - **GitHub CLI (`gh`)**: Must be authenticated with write access to post comments and read issues.
-- **Agent Tool**: Required for launching parallel sub-agents (e.g., using the `generalist` tool).
+- **Claude CLI**: Required for launching matched fresh `claude -p` sessions with an explicit model.
 
 ## License
 MIT

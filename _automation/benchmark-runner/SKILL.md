@@ -1,11 +1,11 @@
 ---
 name: benchmark-runner
-description: Auto-discover all skills with evals in RConsortium/pharma_skills, benchmark each with vs. without skill using parallel sub-agents, and post scored results to the linked GitHub issue. Use whenever someone says "run benchmarks", "compare skill performance", "eval the skills", or wants to measure whether a skill improves output quality.
+description: Auto-discover all skills with evals in RConsortium/pharma_skills, benchmark each with vs. without skill using matched isolated sessions, and post scored results to the linked GitHub issue. Use whenever someone says "run benchmarks", "compare skill performance", "eval the skills", or wants to measure whether a skill improves output quality.
 ---
 
 # Skill Benchmark Runner
 
-Benchmark every evaluation case in the `_automation/evals/` directory of the `RConsortium/pharma_skills` repository. For each eval case, run two Claude sub-agents in parallel — one using the skill, one without — then post a scored comparison as a comment on the originating GitHub issue.
+Benchmark every evaluation case in the `_automation/evals/` directory of the `RConsortium/pharma_skills` repository. For each eval case, run two fresh Claude sessions in parallel — one using the skill, one without — score anonymized outputs, then post a scored comparison as a comment on the originating GitHub issue.
 
 Repository: `RConsortium/pharma_skills` (https://github.com/RConsortium/pharma_skills)
 
@@ -37,54 +37,59 @@ python3 _automation/benchmark-runner/scripts/get_next_eval.py --model {CURRENT_M
 ```
 
 - If the output is `STATUS: UP_TO_DATE`, stop and report that all benchmarks are finished.
-- If the output is a JSON object, parse it. It contains the `prompt`, `files`, `assertions`, and metadata (`_skill_name`, `_skill_sha`, `_skill_content`, `_bundled_resources`).
+- If the output is a JSON object, parse it. It contains the raw eval fields plus benchmark metadata:
+  `_skill_name`, `_skill_sha`, `_skill_content`, `_bundled_resources`, `_prompt_a`,
+  `_prompt_b`, `_common_task_prompt`, `_input_files`, `_scoring_prompt`, and
+  `_blinded_scoring_map`.
 
 ---
 
-## Step 2 — Run two sub-agents in parallel
+## Step 2 — Run matched isolated agents in parallel
 
-Run both agents simultaneously. **Record the start time for each agent.**
+Run both agents simultaneously in separate working directories. **Record the start time for each agent.**
+Both agents must use the same launcher, explicit model, tool allowlist, and neutralized input file names.
 
-**Agent A — WITH the skill** (use the Agent tool / generalist sub-agent):
-- Provide the full contents of `_skill_content`.
-- Provide all files from `_bundled_resources` (e.g., `reference.md`, `examples.md`, `scripts/gsd_report_template.py`).
-- Provide any referenced `files` from the eval case.
-- Give the `prompt` from the eval case.
-- Instruct: "Follow the skill workflow to complete this task. Save all generated files into a directory named `output_A/`. Produce all expected outputs. **At the very end of your response, please state your best estimate of the total tokens used in this turn (input + output) using the format: `[USAGE: {total_tokens}]`.**"
-
-**Agent B — WITHOUT the skill** (use `claude -p` to start a brand-new session):
-
-The prompt for Agent B is pre-built by `get_next_eval.py` and stored in `_prompt_b`. Pass it
-directly to a fresh `claude` session — do not modify it, do not add to it:
+Create the benchmark directories:
 
 ```bash
-mkdir -p /tmp/benchmark_{id}/output_B
-
-# If the eval case has binary input files (images, PDFs, etc.), stage them first.
-# get_next_eval.py lists their absolute paths in _binary_input_files.
-# The prompt already tells Agent B they are in input/ — just put them there:
-mkdir -p /tmp/benchmark_{id}/input
-for src in {_binary_input_files}:
-    cp {src} /tmp/benchmark_{id}/input/
-
-# Then launch Agent B in a brand-new session from the benchmark directory:
-cd /tmp/benchmark_{id} && claude -p "{_prompt_b}" --allowedTools "Bash,Read,Write,Edit,Glob"
+mkdir -p /tmp/benchmark_{id}/agent_A/input /tmp/benchmark_{id}/agent_A/output_A
+mkdir -p /tmp/benchmark_{id}/agent_B/input /tmp/benchmark_{id}/agent_B/output_B
 ```
 
-**How files are handled by `get_next_eval.py`:**
-- **Text files** (`.csv`, `.md`, `.r`, `.py`, `.json`, etc.) — read from disk and inlined
-  verbatim into `_prompt_b` between `--- filename ---` delimiters. No extra steps needed.
-- **Binary files** (images, PDFs, `.docx`, etc.) — listed in `_binary_input_files` (absolute
-  paths). Stage them to `input/` before calling `claude -p`. The prompt already contains the
-  line *"Binary input file(s) are available in the `input/` directory"*, so Agent B knows
-  where to find them without being told anything about their content.
+Stage every `_input_files` item into both `input/` directories using only its neutral `alias`.
+The `source` path is for the orchestrator only; do not expose original filenames or repository
+paths to either agent:
 
-> **Why a new session?** `_prompt_b` is constructed deterministically by the script from
-> the raw eval prompt, optional `language` field, and input file contents only — no
-> filenames generated by the skill, no package hints, no structure. Running it in a fresh
-> `claude -p` session guarantees the agent has exactly that input and nothing else.
+```bash
+cp {source_1} /tmp/benchmark_{id}/agent_A/input/{alias_1}
+cp {source_1} /tmp/benchmark_{id}/agent_B/input/{alias_1}
+```
 
-Both agents use the same model (whichever model this session is running).
+Text files are also embedded in `_common_task_prompt` under neutral names such as
+`input_001.csv`; binary files are only staged in `input/`.
+
+**Agent A — WITH the skill:**
+- Start a brand-new `claude -p` session from `/tmp/benchmark_{id}/agent_A`.
+- Use the same explicit model and allowed tools as Agent B.
+- Provide `_skill_content` and `_bundled_resources`, then provide `_prompt_a` exactly as emitted.
+- Do not include the full dispatcher JSON, `_input_files.source`, raw eval file paths, or additional instructions beyond the skill bundle and `_prompt_a`.
+
+**Agent B — WITHOUT the skill:**
+- Start a brand-new `claude -p` session from `/tmp/benchmark_{id}/agent_B`.
+- Use the same explicit model and allowed tools as Agent A.
+- Provide `_prompt_b` exactly as emitted.
+- Do not include `_skill_content`, `_bundled_resources`, skill filenames, package hints, `_input_files.source`, raw eval file paths, or prior conversation context.
+
+Example launcher shape for each side:
+
+```bash
+cd /tmp/benchmark_{id}/agent_A && claude -p "$(cat prompt_A.txt)" --model "{CURRENT_MODEL_NAME}" --allowedTools "Bash,Read,Write,Edit,Glob"
+cd /tmp/benchmark_{id}/agent_B && claude -p "$(cat prompt_B.txt)" --model "{CURRENT_MODEL_NAME}" --allowedTools "Bash,Read,Write,Edit,Glob"
+```
+
+`prompt_A.txt` should contain only the skill context plus `_prompt_a`. `prompt_B.txt` should
+contain only `_prompt_b`. The experimental contrast must be skill access, not launcher,
+model, cwd, file naming, or prior-session context.
 
 **When the agents return:**
 - Extract the `[USAGE: {n}]` value from each agent's response.
@@ -96,9 +101,20 @@ Both agents use the same model (whichever model this session is running).
 
 ---
 
-## Step 3 — Score each output against assertions
+## Step 3 — Score blinded outputs against assertions
 
-For each agent's output, evaluate against every assertion in the eval case:
+Before scoring, copy outputs according to `_blinded_scoring_map`:
+
+```text
+candidate_1 -> output_A or output_B
+candidate_2 -> output_A or output_B
+```
+
+Start a fresh scoring session from a directory that contains only `candidate_1/`,
+`candidate_2/`, and `_scoring_prompt`. Do not expose `_blinded_scoring_map`,
+`_skill_content`, `_bundled_resources`, `output_A`, or `output_B` labels to the scorer.
+
+For each candidate output, evaluate against every assertion in the eval case:
 - Pass — assertion clearly met
 - Fail — assertion clearly not met
 - Partial — partially met
@@ -107,7 +123,10 @@ Score = (passes + 0.5 x partials) / total assertions, as a fraction and percenta
 
 Retrieve the recorded duration from the most recent entry in `_automation/benchmark-runner/runs/runs.json`.
 
-Identify "Key Metrics" from the assertions (e.g., Sample Size, Power, Error Rates) to include in the scorecard for direct comparison.
+Identify "Key Metrics" from the assertions (e.g., Sample Size, Power, Error Rates) while
+still blinded. After the scoring table and qualitative notes are finalized, unblind with
+`_blinded_scoring_map` and translate the results back to "With Skill" and "Without Skill"
+for the report.
 
 ---
 
@@ -115,9 +134,9 @@ Identify "Key Metrics" from the assertions (e.g., Sample Size, Power, Error Rate
 
 To allow for deep inspection of the results (and support downloading binary files like `.docx` and `.png`):
 
-1. **Package:** Create a zip archive containing both `output_A/` and `output_B/` directories from the temporary folder.
+1. **Package:** Create a zip archive containing both isolated output directories.
    ```bash
-   cd /tmp/benchmark_{id} && zip -r benchmark_results_{eval_id}.zip output_A/ output_B/
+   cd /tmp/benchmark_{id} && zip -r benchmark_results_{eval_id}.zip agent_A/output_A/ agent_B/output_B/
    ```
 2. **Upload:** Use the GitHub CLI to upload the zip file to a dedicated "Benchmark Results" release.
    - First, check if the release exists. If not, create it:
@@ -246,7 +265,7 @@ Run get_next_eval.py (Detects composite skill SHA, model, and file order)
   |-- If JSON ->
        |-- Agent A (with skill) ---+
        |-- Agent B (without skill)-+--- run in parallel
-       |-- Score both against assertions       (Step 3)
+       |-- Score blinded candidates           (Step 3)
        |-- Archive and upload detailed outputs (Step 4)
        |-- Format Markdown report              (Step 5)
        |-- Post comment to GitHub issue #{N}   (Step 6)
@@ -263,6 +282,4 @@ but using the API ID avoids any ambiguity across runs.
 - Only one high-priority evaluation is processed per run
 - Deduplication correctly accounts for both Skill SHA and Model Name (normalised)
 - LLM token usage is minimised by offloading discovery to a script
-- Results are posted as comments on the correct GitHub issues
-overy to a script
 - Results are posted as comments on the correct GitHub issues
