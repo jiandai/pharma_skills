@@ -5,18 +5,144 @@ import argparse
 import sys
 import os
 import re
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 # Derive repo root from this file's location — no CWD dependency (fix 1.4)
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BUNDLE_SIZE_LIMIT_BYTES = 100 * 1024  # 100 KB (fix 2.3)
 RUNS_DIR = REPO_ROOT / "_automation" / "benchmark-runner" / "runs"
+GITHUB_REPO = os.environ.get("PHARMA_SKILLS_GITHUB_REPO", "RConsortium/pharma-skills")
+TEXT_EXTENSIONS = {
+    ".csv", ".tsv", ".txt", ".md", ".r", ".py", ".json",
+    ".yaml", ".yml", ".toml", ".xml", ".html", ".sql",
+}
 
 
 def normalize_model_name(name: str) -> str:
     """Lowercase + strip all punctuation/spaces for robust deduplication (fix 1.3)."""
     return re.sub(r"[\s\-_\.]", "", name.lower())
+
+
+def get_github_token() -> Optional[str]:
+    """Return the GitHub token used for REST API fallbacks, if configured."""
+    return os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+
+
+def fetch_issue_comments_via_api(issue_number: str, repo: str = GITHUB_REPO) -> list[dict]:
+    """Fetch issue comments through GitHub REST without requiring the gh CLI."""
+    token = get_github_token()
+    if not token:
+        raise RuntimeError("GH_TOKEN or GITHUB_TOKEN is not set")
+
+    comments: list[dict] = []
+    page = 1
+    while True:
+        url = (
+            f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
+            f"?per_page=100&page={page}"
+        )
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {token}",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "pharma-skills-benchmark-runner",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            page_comments = json.loads(response.read().decode("utf-8"))
+        if not page_comments:
+            break
+        comments.extend(page_comments)
+        if len(page_comments) < 100:
+            break
+        page += 1
+    return comments
+
+
+def has_matching_benchmark_comment(comments: list[dict], target_sha: str, target_model: str) -> bool:
+    """Return True when comments contain a benchmark result for this SHA/model."""
+    norm_target = normalize_model_name(target_model)
+
+    for comment in comments:
+        body = comment.get("body", "")
+        if "Automated Benchmark Results" not in body:
+            continue
+        has_sha = (
+            f"Skill version: `{target_sha}`" in body
+            or f"**Skill version** | `{target_sha}`" in body
+        )
+        # Normalize the entire comment body so variant spellings still match (fix 1.3)
+        has_model = norm_target in normalize_model_name(body)
+        if has_sha and has_model:
+            return True
+    return False
+
+
+def get_issue_num(eval_id: str) -> int:
+    match = re.search(r"(\d+)$", eval_id)
+    return int(match.group(1)) if match else 0
+
+
+def get_default_runner_id() -> str:
+    for env_name in ("PHARMA_SKILLS_RUNNER_ID", "GITHUB_ACTOR", "USER", "USERNAME"):
+        value = os.environ.get(env_name)
+        if value:
+            return value
+    try:
+        return os.uname().nodename
+    except AttributeError:
+        return "default-runner"
+
+
+def get_default_selection_salt(now: datetime) -> str:
+    return now.strftime("%Y-%m-%dT%H:%MZ")
+
+
+def distributed_selection_score(eval_case: dict, model: str, runner_id: str, salt: str) -> int:
+    key = "|".join([
+        normalize_model_name(model),
+        runner_id,
+        salt,
+        eval_case.get("id", ""),
+        eval_case.get("_skill_sha", ""),
+    ])
+    return int(hashlib.sha256(key.encode()).hexdigest(), 16)
+
+
+def select_eval(
+    eligible_evals: list[dict],
+    model: str,
+    selection_mode: str,
+    runner_id: str,
+    selection_salt: str,
+    now: datetime,
+) -> dict:
+    if selection_mode == "daily":
+        today_last_digit = int(str(now.day)[-1])
+        return min(
+            eligible_evals,
+            key=lambda e: (
+                abs((get_issue_num(e["id"]) % 10) - today_last_digit),
+                get_issue_num(e["id"])
+            )
+        )
+
+    if selection_mode == "distributed":
+        return min(
+            eligible_evals,
+            key=lambda e: (
+                distributed_selection_score(e, model, runner_id, selection_salt),
+                get_issue_num(e["id"]),
+            )
+        )
+
+    raise ValueError(f"Unsupported selection mode: {selection_mode}")
 
 
 def get_skill_content_sha(skill_path: Path) -> str:
@@ -59,39 +185,123 @@ def check_github_comments(issue_id: str, target_sha: str, target_model: str) -> 
         result = subprocess.run(
             [
                 "gh", "issue", "view", issue_number,
-                "--repo", "RConsortium/pharma_skills",
+                "--repo", GITHUB_REPO,
                 "--json", "comments",
             ],
             capture_output=True, text=True, check=True,
         )
+        data = json.loads(result.stdout)
+        return has_matching_benchmark_comment(data.get("comments", []), target_sha, target_model)
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        # A transient gh failure or missing gh binary means we cannot confirm —
-        # warn loudly but do not silently skip: return False so the benchmark
-        # still runs rather than being dropped entirely.
+        # If gh is unavailable or unauthenticated, try the REST API fallback.
         err_msg = e.stderr if isinstance(e, subprocess.CalledProcessError) else str(e)
         print(
             f"Warning: gh failed checking comments for issue {issue_id} — "
-            f"treating as pending (may cause a duplicate if transient): {err_msg}",
+            f"trying GitHub REST API fallback: {err_msg}",
+            file=sys.stderr,
+        )
+    except json.JSONDecodeError as e:
+        print(
+            f"Warning: gh returned invalid JSON checking comments for issue {issue_id} — "
+            f"trying GitHub REST API fallback: {e}",
+            file=sys.stderr,
+        )
+
+    try:
+        comments = fetch_issue_comments_via_api(issue_number)
+    except (RuntimeError, OSError, urllib.error.URLError, urllib.error.HTTPError) as e:
+        print(
+            f"Warning: GitHub REST API fallback failed checking comments for issue "
+            f"{issue_id} — treating as pending (may cause a duplicate if transient): {e}",
             file=sys.stderr,
         )
         return False
+    return has_matching_benchmark_comment(comments, target_sha, target_model)
 
-    data = json.loads(result.stdout)
-    norm_target = normalize_model_name(target_model)
 
-    for comment in data.get("comments", []):
-        body = comment.get("body", "")
-        if "Automated Benchmark Results" not in body:
-            continue
-        has_sha = (
-            f"Skill version: `{target_sha}`" in body
-            or f"**Skill version** | `{target_sha}`" in body
-        )
-        # Normalize the entire comment body so variant spellings still match (fix 1.3)
-        has_model = norm_target in normalize_model_name(body)
-        if has_sha and has_model:
-            return True
-    return False
+def build_agent_prompts(eval_case: dict) -> None:
+    """Build matched A/B prompts from one neutral task payload."""
+    task_parts: list[str] = []
+    if eval_case.get("language"):
+        task_parts.append(f"Use {eval_case['language']} for this task.")
+    task_parts.append(eval_case["prompt"])
+
+    input_files: list[dict[str, str]] = []
+    for idx, fpath_str in enumerate(eval_case.get("files") or [], start=1):
+        source_path = REPO_ROOT / fpath_str
+        ext = Path(fpath_str).suffix.lower()
+        alias = f"input_{idx:03d}{ext or '.dat'}"
+        kind = "text" if ext in TEXT_EXTENSIONS else "binary"
+        input_files.append({
+            "alias": alias,
+            "source": str(source_path),
+            "kind": kind,
+        })
+
+        if kind == "text":
+            try:
+                content = source_path.read_text()
+            except OSError as e:
+                print(
+                    f"Warning: could not read input file {fpath_str}: {e}",
+                    file=sys.stderr,
+                )
+                continue
+            task_parts.append(f"--- {alias} ---\n{content}")
+
+    if input_files:
+        aliases = ", ".join(f"`{item['alias']}`" for item in input_files)
+        task_parts.append(f"Input file(s) are staged in the `input/` directory: {aliases}")
+
+    usage_suffix = (
+        "At the very end of your response, state your best estimate of the "
+        "total tokens used in this turn (input + output) using the format: "
+        "`[USAGE: {total_tokens}]`"
+    )
+    common_task_prompt = "\n\n".join(task_parts)
+    eval_case["_input_files"] = input_files
+    eval_case["_common_task_prompt"] = common_task_prompt
+    eval_case["_prompt_a"] = (
+        "Follow the provided skill workflow to complete this task. "
+        "Save all generated files into a directory named `output_A/`. "
+        "Produce all expected outputs.\n\n"
+        f"{common_task_prompt}\n\n"
+        f"{usage_suffix}"
+    )
+    eval_case["_prompt_b"] = (
+        "Complete this task using only your base knowledge and tools. "
+        "Do NOT use any SKILL.md, skill instructions, bundled skill resources, "
+        "or repository skill files. "
+        "Save all generated files into a directory named `output_B/`. "
+        "Produce all expected outputs.\n\n"
+        f"{common_task_prompt}\n\n"
+        f"{usage_suffix}"
+    )
+    eval_case["_scoring_prompt"] = (
+        "Score two anonymized benchmark candidates against the rubric below. "
+        "Do not infer which candidate used a skill. Score only the artifacts "
+        "available under `candidate_1/` and `candidate_2/`.\n\n"
+        f"Task prompt:\n{eval_case['prompt']}\n\n"
+        f"Expected output:\n{eval_case.get('expected_output', '')}\n\n"
+        "Assertions:\n"
+        + "\n".join(f"- {assertion}" for assertion in eval_case.get("assertions", []))
+        + "\n\nReturn a concise score table with Pass, Partial, or Fail for each "
+        "assertion and each candidate. Do not mention or infer treatment labels."
+    )
+
+    blind_seed = hashlib.sha256(
+        f"{eval_case.get('id', '')}:{eval_case.get('_skill_sha', '')}".encode()
+    ).hexdigest()
+    if int(blind_seed[:2], 16) % 2 == 0:
+        eval_case["_blinded_scoring_map"] = {
+            "candidate_1": "output_A",
+            "candidate_2": "output_B",
+        }
+    else:
+        eval_case["_blinded_scoring_map"] = {
+            "candidate_1": "output_B",
+            "candidate_2": "output_A",
+        }
 
 
 def write_run_manifest(eval_case: dict, model: str, skill_sha: str, status: str) -> None:
@@ -105,6 +315,9 @@ def write_run_manifest(eval_case: dict, model: str, skill_sha: str, status: str)
         "run_date": datetime.now(timezone.utc).isoformat(),
         "start_timestamp": datetime.now(timezone.utc).timestamp(),
         "status": status,
+        "selection_mode": eval_case.get("_selection_mode"),
+        "selection_runner_id": eval_case.get("_selection_runner_id"),
+        "selection_salt": eval_case.get("_selection_salt"),
     }
     manifest_path = RUNS_DIR / "runs.json"
     records = []
@@ -129,6 +342,32 @@ def main() -> None:
     )
     parser.add_argument("--priority-skill", help="Focus selection on this specific skill folder.")
     parser.add_argument("--priority-issue", help="Prioritize this specific issue ID (e.g. github-issue-27).")
+    parser.add_argument(
+        "--selection-mode",
+        choices=("distributed", "daily"),
+        default=os.environ.get("PHARMA_SKILLS_SELECTION_MODE", "distributed"),
+        help=(
+            "How to choose among pending evals. 'distributed' hashes model, runner id, "
+            "selection salt, and eval id so multiple runners spread out. 'daily' preserves "
+            "the previous day-last-digit ordering."
+        ),
+    )
+    parser.add_argument(
+        "--runner-id",
+        default=get_default_runner_id(),
+        help=(
+            "Stable id for this worker/person. Defaults to PHARMA_SKILLS_RUNNER_ID, "
+            "GITHUB_ACTOR, USER, USERNAME, or hostname."
+        ),
+    )
+    parser.add_argument(
+        "--selection-salt",
+        default=os.environ.get("PHARMA_SKILLS_SELECTION_SALT"),
+        help=(
+            "Salt for distributed selection. Defaults to the current UTC minute. "
+            "Set explicitly to reproduce a prior dispatch order."
+        ),
+    )
     args = parser.parse_args()
 
     # Discover evals from the centralized evals directory
@@ -138,7 +377,8 @@ def main() -> None:
         return
 
     # Collect all eligible evaluations across all skills
-    today_last_digit = int(str(datetime.now(timezone.utc).day)[-1])
+    dispatch_now = datetime.now(timezone.utc)
+    selection_salt = args.selection_salt or get_default_selection_salt(dispatch_now)
     eligible_evals: list[dict] = []
 
     for eval_file in sorted(evals_dir.glob("*.json")):
@@ -205,6 +445,9 @@ def main() -> None:
                         size_warned = True
                     bundled[rel] = content
             eval_case["_bundled_resources"] = bundled
+
+            build_agent_prompts(eval_case)
+
             eligible_evals.append(eval_case)
 
             # If we prioritized a specific issue and found it, we can stop collecting
@@ -215,20 +458,17 @@ def main() -> None:
         print("STATUS: UP_TO_DATE")
         return
 
-    def get_issue_num(eval_id: str) -> int:
-        match = re.search(r"(\d+)$", eval_id)
-        return int(match.group(1)) if match else 0
-
-    # Apply the selection logic:
-    # 1. Distance between issue last digit and today's day last digit
-    # 2. Tie-breaker: smallest issue number
-    selected_eval = min(
+    selected_eval = select_eval(
         eligible_evals,
-        key=lambda e: (
-            abs((get_issue_num(e["id"]) % 10) - today_last_digit),
-            get_issue_num(e["id"])
-        )
+        args.model,
+        args.selection_mode,
+        args.runner_id,
+        selection_salt,
+        dispatch_now,
     )
+    selected_eval["_selection_mode"] = args.selection_mode
+    selected_eval["_selection_runner_id"] = args.runner_id
+    selected_eval["_selection_salt"] = selection_salt
 
     write_run_manifest(selected_eval, args.model, selected_eval["_skill_sha"], "dispatched")
     print(json.dumps(selected_eval, indent=2))

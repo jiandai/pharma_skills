@@ -7,6 +7,7 @@ Uses unittest.mock to avoid any real git/gh/network calls.
 import json
 import sys
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, call, mock_open, patch
 
@@ -41,6 +42,72 @@ class TestNormalizeModelName(unittest.TestCase):
 
     def test_gpt_normalization(self):
         self.assertEqual(gne.normalize_model_name("gpt-4o"), "gpt4o")
+
+
+class TestEvalSelection(unittest.TestCase):
+    def _eval_cases(self):
+        return [
+            {"id": "github-issue-21", "_skill_sha": "sha21"},
+            {"id": "github-issue-22", "_skill_sha": "sha22"},
+            {"id": "github-issue-23", "_skill_sha": "sha23"},
+            {"id": "github-issue-24", "_skill_sha": "sha24"},
+            {"id": "github-issue-27", "_skill_sha": "sha27"},
+        ]
+
+    def test_daily_selection_preserves_day_digit_logic(self):
+        selected = gne.select_eval(
+            self._eval_cases(),
+            "test-model",
+            "daily",
+            "alice",
+            "2026-04-21",
+            datetime(2026, 4, 24, tzinfo=timezone.utc),
+        )
+        self.assertEqual(selected["id"], "github-issue-24")
+
+    def test_distributed_selection_is_stable_for_same_runner(self):
+        selected_1 = gne.select_eval(
+            self._eval_cases(),
+            "test-model",
+            "distributed",
+            "alice",
+            "2026-04-21",
+            datetime(2026, 4, 21, tzinfo=timezone.utc),
+        )
+        selected_2 = gne.select_eval(
+            self._eval_cases(),
+            "test-model",
+            "distributed",
+            "alice",
+            "2026-04-21",
+            datetime(2026, 4, 21, tzinfo=timezone.utc),
+        )
+        self.assertEqual(selected_1["id"], selected_2["id"])
+
+    def test_distributed_selection_spreads_different_runners(self):
+        alice = gne.select_eval(
+            self._eval_cases(),
+            "test-model",
+            "distributed",
+            "alice",
+            "2026-04-21",
+            datetime(2026, 4, 21, tzinfo=timezone.utc),
+        )
+        bob = gne.select_eval(
+            self._eval_cases(),
+            "test-model",
+            "distributed",
+            "bob",
+            "2026-04-21",
+            datetime(2026, 4, 21, tzinfo=timezone.utc),
+        )
+        self.assertNotEqual(alice["id"], bob["id"])
+
+    def test_default_selection_salt_uses_utc_minute(self):
+        salt = gne.get_default_selection_salt(
+            datetime(2026, 4, 21, 13, 45, 59, tzinfo=timezone.utc)
+        )
+        self.assertEqual(salt, "2026-04-21T13:45Z")
 
 
 class TestCheckGithubComments(unittest.TestCase):
@@ -101,6 +168,17 @@ class TestCheckGithubComments(unittest.TestCase):
         # Should not raise — returns False and prints warning
         result = gne.check_github_comments("github-issue-21", "abc123", "claude-sonnet-4-6")
         self.assertFalse(result)
+
+    @patch("get_next_eval.fetch_issue_comments_via_api")
+    @patch("get_next_eval.subprocess.run")
+    def test_gh_failure_uses_api_fallback(self, mock_run, mock_api):
+        import subprocess
+        sha = "abc123"
+        model = "claude-sonnet-4-6"
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh", stderr="auth error")
+        mock_api.return_value = [self._make_comment(sha, model)]
+        self.assertTrue(gne.check_github_comments("github-issue-21", sha, model))
+        mock_api.assert_called_once_with("21")
 
     @patch("get_next_eval.subprocess.run")
     def test_gh_missing_returns_false_with_warning(self, mock_run):

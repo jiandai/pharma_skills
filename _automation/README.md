@@ -47,7 +47,7 @@ Go to [claude.ai/code/routines](https://claude.ai/code/routines) and click **New
 
 | Field | Value |
 |---|---|
-| **Repository** | `RConsortium/pharma_skills` |
+| **Repository** | `RConsortium/pharma-skills` |
 | **Environment** | The `pharma-skills-r` environment from step 1 |
 | **Trigger** | Schedule — e.g. weekly on Monday at 09:00 |
 | **Prompt** | See example below |
@@ -68,6 +68,5 @@ Click **Run now** on the routine detail page and confirm that R package installa
 
 - **R is not pre-installed** in cloud sessions. The setup script above handles this; do not skip it.
 - The setup script output is **cached** by Anthropic, so R and the pre-installed packages are available instantly on subsequent runs without reinstalling.
-- Environment variables (e.g. `GH_TOKEN`, `PHARMA_SKILLS_SLACK_CHANNEL`) are set in the environment config, not in `.claude/settings.json`.
+- Environment variables (e.g. `GH_TOKEN`, `GITHUB_TOKEN`, `PHARMA_SKILLS_RUNNER_ID`, `PHARMA_SKILLS_SLACK_CHANNEL`) are set in the environment config, not in `.claude/settings.json`. `GH_TOKEN` or `GITHUB_TOKEN` enables the benchmark runner's REST fallback when `gh` is unavailable. `PHARMA_SKILLS_RUNNER_ID` should be unique per person or scheduled worker to spread benchmark jobs across runners.
 - The `.claude/settings.json` `permissions.allow` rules in this repo (e.g. `Bash(Rscript:*)`) apply to local CLI sessions only and have no effect on routine network access.
-n routine network access.
