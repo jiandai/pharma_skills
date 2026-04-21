@@ -1,13 +1,13 @@
 ---
 name: benchmark-runner
-description: Auto-discover all skills with evals in RConsortium/pharma_skills, benchmark each with vs. without skill using matched isolated sessions, and post scored results to the linked GitHub issue. Use whenever someone says "run benchmarks", "compare skill performance", "eval the skills", or wants to measure whether a skill improves output quality.
+description: Auto-discover all skills with evals in RConsortium/pharma-skills, benchmark each with vs. without skill using matched isolated sessions, and post scored results to the linked GitHub issue. Use whenever someone says "run benchmarks", "compare skill performance", "eval the skills", or wants to measure whether a skill improves output quality.
 ---
 
 # Skill Benchmark Runner
 
-Benchmark every evaluation case in the `_automation/evals/` directory of the `RConsortium/pharma_skills` repository. For each eval case, run two fresh Claude sessions in parallel — one using the skill, one without — score anonymized outputs, then post a scored comparison as a comment on the originating GitHub issue.
+Benchmark every evaluation case in the `_automation/evals/` directory of the `RConsortium/pharma-skills` repository. For each eval case, run two fresh Claude sessions in parallel — one using the skill, one without — score anonymized outputs, then post a scored comparison as a comment on the originating GitHub issue.
 
-Repository: `RConsortium/pharma_skills` (https://github.com/RConsortium/pharma_skills)
+Repository: `RConsortium/pharma-skills` (https://github.com/RConsortium/pharma-skills)
 
 ---
 
@@ -35,6 +35,20 @@ Run the dispatcher script to identify the highest-priority pending evaluation:
 ```bash
 python3 _automation/benchmark-runner/scripts/get_next_eval.py --model {CURRENT_MODEL_NAME}
 ```
+
+By default, the dispatcher uses distributed selection: it hashes the model, a runner id,
+the current UTC minute, the eval id, and the skill SHA to spread different people or
+workers across different pending evals. You can optionally set a stable runner id for each
+person or worker:
+
+```bash
+python3 _automation/benchmark-runner/scripts/get_next_eval.py \
+  --model {CURRENT_MODEL_NAME} \
+  --runner-id {YOUR_NAME_OR_WORKER_ID}
+```
+
+Use `--selection-salt {YYYY-MM-DDTHH:MMZ}` to reproduce a prior distributed order, or
+`--selection-mode daily` to use the older day-last-digit ordering.
 
 - If the output is `STATUS: UP_TO_DATE`, stop and report that all benchmarks are finished.
 - If the output is a JSON object, parse it. It contains the raw eval fields plus benchmark metadata:
@@ -141,14 +155,14 @@ To allow for deep inspection of the results (and support downloading binary file
 2. **Upload:** Use the GitHub CLI to upload the zip file to a dedicated "Benchmark Results" release.
    - First, check if the release exists. If not, create it:
      ```bash
-     gh release view "benchmark-results" --repo RConsortium/pharma_skills || gh release create "benchmark-results" --repo RConsortium/pharma_skills --title "Automated Benchmark Results" --notes "Rolling release for automated benchmark zip files." --prerelease
+     gh release view "benchmark-results" --repo RConsortium/pharma-skills || gh release create "benchmark-results" --repo RConsortium/pharma-skills --title "Automated Benchmark Results" --notes "Rolling release for automated benchmark zip files." --prerelease
      ```
    - Upload the zip file as a release asset (overwriting if it already exists):
      ```bash
-     cd /tmp/benchmark_{id} && gh release upload "benchmark-results" benchmark_results_{eval_id}.zip --repo RConsortium/pharma_skills --clobber
+     cd /tmp/benchmark_{id} && gh release upload "benchmark-results" benchmark_results_{eval_id}.zip --repo RConsortium/pharma-skills --clobber
      ```
    - Construct the direct download URL:
-     `https://github.com/RConsortium/pharma_skills/releases/download/benchmark-results/benchmark_results_{eval_id}.zip`
+     `https://github.com/RConsortium/pharma-skills/releases/download/benchmark-results/benchmark_results_{eval_id}.zip`
 
 Capture this direct download URL for inclusion in the markdown report.
 
@@ -241,7 +255,7 @@ Write a Markdown file at `/tmp/benchmark_comment_{skill}_{eval_id}.md` using thi
 </details>
 
 ---
-*Posted automatically by `benchmark-runner` · Repo: https://github.com/RConsortium/pharma_skills*
+*Posted automatically by `benchmark-runner` · Repo: https://github.com/RConsortium/pharma-skills*
 ```
 
 ---
@@ -252,7 +266,16 @@ Extract the issue number from the `id` (e.g., `"github-issue-21"` -> **#21**).
 
 Post using the `gh` CLI:
 ```bash
-gh issue comment {issue_number} --repo RConsortium/pharma_skills --body-file /tmp/benchmark_comment_{skill}_{eval_id}.md
+gh issue comment {issue_number} --repo RConsortium/pharma-skills --body-file /tmp/benchmark_comment_{skill}_{eval_id}.md
+```
+
+If `gh` is missing, unauthenticated, or blocked, use the REST API fallback. It requires
+`GH_TOKEN` or `GITHUB_TOKEN` with permission to write issue comments:
+
+```bash
+python3 _automation/benchmark-runner/scripts/post_issue_comment.py {issue_number} \
+  --repo RConsortium/pharma-skills \
+  --body-file /tmp/benchmark_comment_{skill}_{eval_id}.md
 ```
 
 ---
@@ -277,9 +300,20 @@ Pass `--model` using the canonical API model ID (e.g., `gemini-2.0-flash`, `gpt-
 display name (e.g., `Claude Sonnet 3.7`). The deduplication logic normalises both sides,
 but using the API ID avoids any ambiguity across runs.
 
+## Notes on Distributed Selection
+
+When several people run the same model, they should set distinct `--runner-id` values
+or `PHARMA_SKILLS_RUNNER_ID` environment variables. The dispatcher uses that id to create
+a stable per-runner ordering of the pending evals for the current UTC minute. If runner ids
+are not available, the minute-level salt still reshuffles the ordering as people start runs
+at different times. This reduces collisions without requiring a central lock. It does not
+eliminate races completely; runners that start in the same minute with the same model and
+same runner id can still pick the same eval. The GitHub issue-comment deduplication prevents
+completed duplicate model/SHA results from being selected on later runs.
+
 ## Success Criteria
 
 - Only one high-priority evaluation is processed per run
 - Deduplication correctly accounts for both Skill SHA and Model Name (normalised)
 - LLM token usage is minimised by offloading discovery to a script
-- Results are posted as comments on the correct GitHub issues
+- Results are posted as comments on the correct GitHub issues using `gh` or the REST fallback

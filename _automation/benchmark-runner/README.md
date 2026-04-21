@@ -6,12 +6,13 @@ The **Skill Benchmark Runner** is an automated framework designed to quantify th
 
 1.  **Discovery**: Scans the `evals/` directory for all `.json` evaluation cases.
 2.  **Deduplication**: Checks the linked GitHub issues (e.g., `#21`) to see if a benchmark has already been posted for the **current skill version (Git SHA)** and the **current model** (e.g., GPT-4o, Gemini 2.0 Flash, Claude 3.7 Sonnet).
-3.  **Matched Parallel Execution**: Launches two fresh, isolated sessions with the same model, tools, cwd shape, and neutralized input file names:
+3.  **Distributed Dispatch**: Selects a pending eval through a runner/time-specific hash so people using the same model are less likely to pick the same job.
+4.  **Matched Parallel Execution**: Launches two fresh, isolated sessions with the same model, tools, cwd shape, and neutralized input file names:
     *   **Agent A (With Skill)**: Receives the common task prompt plus the `SKILL.md` instructions and bundled resources.
     *   **Agent B (Without Skill)**: Receives the same common task prompt, with explicit instructions *not* to use any skill data.
-4.  **Blinded Scoring**: Evaluates anonymized `candidate_1` and `candidate_2` artifacts against predefined **Assertions**, then unblinds the mapping back to with-skill vs. without-skill after scoring.
-5.  **Performance Tracking**: Records technical metrics including **Execution Time**, **Token Usage**, and **Tool Success Rates**.
-6.  **Reporting**: Generates a detailed Markdown report and posts it as a comment on the originating GitHub issue.
+5.  **Blinded Scoring**: Evaluates anonymized `candidate_1` and `candidate_2` artifacts against predefined **Assertions**, then unblinds the mapping back to with-skill vs. without-skill after scoring.
+6.  **Performance Tracking**: Records technical metrics including **Execution Time**, **Token Usage**, and **Tool Success Rates**.
+7.  **Reporting**: Generates a detailed Markdown report and posts it as a comment on the originating GitHub issue.
 
 ## Understanding Evaluation Files (Example: Issue #21)
 
@@ -48,6 +49,7 @@ To add a new test case to a skill's evaluation suite:
 
 ### As a Scheduled Workflow
 This tool is optimized for CI/CD or scheduled task runners. Provide the `SKILL.md` as the system instruction and trigger it periodically to ensure skill quality doesn't regress as the codebase evolves.
+Set a distinct `PHARMA_SKILLS_RUNNER_ID` for each scheduled worker when possible. If no runner id is provided, the dispatcher still uses the current UTC minute as part of the selection salt so workers that start at different times are less likely to collide.
 
 ### Manual Trigger
 Ask your agent:
@@ -55,7 +57,7 @@ Ask your agent:
 > "Compare the latest skill version against the base model for Issue #21."
 
 ## Requirements
-- **GitHub CLI (`gh`)**: Must be authenticated with write access to post comments and read issues.
+- **GitHub access**: Use authenticated `gh`, or set `GH_TOKEN`/`GITHUB_TOKEN` for the REST fallback scripts. The token must be able to read issues and write issue comments.
 - **Claude CLI**: Required for launching matched fresh `claude -p` sessions with an explicit model.
 
 ## License
