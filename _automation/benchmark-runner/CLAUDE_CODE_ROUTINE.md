@@ -13,15 +13,15 @@ https://github.com/RConsortium/pharma-skills/blob/main/_automation/benchmark-run
 ## Allowed Domain 
 
 ```
-cran.r-project.org
 *.r-project.org
-cloud.r-project.org
-packagemanager.posit.co
-rspm-sync.rstudio.com
 *.posit.co
-bioconductor.org
+rspm-sync.rstudio.com
 *.bioconductor.org
 github.com
 *.githubusercontent.com
 ppa.launchpadcontent.net
+archive.ubuntu.com
+security.ubuntu.com
+download.docker.com
+r-lib.github.io
 ```
