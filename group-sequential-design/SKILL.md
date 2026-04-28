@@ -5,6 +5,7 @@ description: >
   spending functions, boundaries, multiplicity, and event/enrollment prediction. Triggers on: Phase 3 trial design, sample size/events for survival endpoints, alpha spending, group sequential design, interim analysis planning, or enrollment/event timeline prediction for clinical trials.
 ---
 
+
 ## Bundled Resources
 
 | File | What it contains | When to read |
