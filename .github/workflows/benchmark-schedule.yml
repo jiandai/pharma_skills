@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     # PAUSED: The API is not yet ready.
     #if: false && github.repository == 'RConsortium/pharma-skills'
-    if: github.repository == 'jiandai/pharma-skills'
+    if: github.repository == 'jiandai/pharma_skills'
 
     steps:
       - name: Checkout repository
