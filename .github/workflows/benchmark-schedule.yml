@@ -64,6 +64,6 @@ jobs:
           MODEL="${{ github.event.inputs.model || 'claude-sonnet-4-6' }}"
           # Invoke benchmark-runner skill via Claude Code CLI
           # The skill handles sub-agent spawning, scoring, and GitHub posting
-          claude --skill _automation/benchmark-runner/SKILL.md \
-                 --message "Run benchmarks using model $MODEL" \
-                 --no-interactive
+          claude -p "Read _automation/benchmark-runner/SKILL.md and follow it to run benchmarks using model $MODEL" \
+           --model "$MODEL" \
+           --permission-mode acceptEdits
