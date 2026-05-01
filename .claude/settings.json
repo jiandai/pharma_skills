@@ -12,6 +12,13 @@
       "Bash(python3 _automation/*:*)",
       "Bash(Rscript:*)",
       "Bash(R:*)",
+      "Bash(bash _automation/:*)", 
+      "Bash(claude -p:*)",
+      "Bash(uv:*)", 
+      "Bash(mkdir:*)", 
+      "Bash(cp:*)", 
+      "Bash(curl:*)", 
+      "Bash(cat:*))", 
       "Bash(zip:*)",
       "Bash(uvx:*)",
       "WebFetch(domain:cran.r-project.org)",
@@ -34,7 +41,9 @@
         "packagemanager.posit.co",
         "*.posit.co",
         "bioconductor.org",
-        "*.bioconductor.org"
+        "*.bioconductor.org",
+        "api.github.com", 
+        "github.com"
       ]
     }
   }
