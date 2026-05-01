@@ -66,5 +66,5 @@ jobs:
           # The skill handles sub-agent spawning, scoring, and GitHub posting
           claude -p "Read _automation/benchmark-runner/SKILL.md and follow it to run benchmarks using model $MODEL" \
            --model "$MODEL" \
-           --permission-mode acceptEdits
+           --permission-mode bypassPermissions 
 
